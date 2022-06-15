@@ -1,12 +1,12 @@
 # Copyright 2020 by Andrey Ignatov. All Rights Reserved.
 
 from functools import reduce
-import tensorflow as tf
+import tensorflow.compat.v1 as tf
 import numpy as np
 import sys
 import os
 
-NUM_DEFAULT_TRAIN_ITERS = [100000, 35000, 20000, 20000, 5000, 5000]
+NUM_DEFAULT_TRAIN_ITERS = [500, 500, 500, 500, 500]
 
 
 def process_command_args(arguments):
@@ -14,10 +14,13 @@ def process_command_args(arguments):
     # Specifying the default parameters
 
     level = 0
-    batch_size = 50
+    batch_size = 20
 
     train_size = 5000
     learning_rate = 5e-5
+
+    prefix = ''
+    model_path = 'model.py'
 
     eval_step = 1000
     restore_iter = None
@@ -27,6 +30,12 @@ def process_command_args(arguments):
     vgg_dir = 'vgg_pretrained/imagenet-vgg-verydeep-19.mat'
 
     for args in arguments:
+
+        if args.startswith("model_path"):
+            model_path = str(args.split("=")[1])
+
+        if args.startswith("dir_prefix"):
+            prefix = str(args.split("=")[1])
 
         if args.startswith("level"):
             level = int(args.split("=")[1])
@@ -54,10 +63,10 @@ def process_command_args(arguments):
         if args.startswith("vgg_dir"):
             vgg_dir = args.split("=")[1]
 
-        if args.startswith("eval_step"):
-            eval_step = int(args.split("=")[1])
+        if args.startswith("loss_fn"):
+            loss_fn = args.split("=")[1]
 
-    if restore_iter is None and level < 5:
+    if restore_iter is None and level < 4:
         restore_iter = get_last_iter(level + 1)
         if restore_iter == -1:
             print("Error: Cannot find any pre-trained models for PyNET's level " + str(level + 1) + ".")
@@ -66,6 +75,9 @@ def process_command_args(arguments):
 
     if num_train_iters is None:
         num_train_iters = NUM_DEFAULT_TRAIN_ITERS[level]
+        
+    if loss_fn is None:
+        loss_fn = 'vgg+ssim'
 
     print("The following parameters will be applied for CNN training:")
 
@@ -77,9 +89,10 @@ def process_command_args(arguments):
     print("Restore Iteration: " + str(restore_iter))
     print("Path to the dataset: " + dataset_dir)
     print("Path to VGG-19 network: " + vgg_dir)
+    print("loss_fn: " + loss_fn)
 
-    return level, batch_size, train_size, learning_rate, restore_iter, num_train_iters,\
-           dataset_dir, vgg_dir, eval_step
+    return prefix, model_path, level, batch_size, train_size, learning_rate, restore_iter, num_train_iters,\
+           dataset_dir, vgg_dir, loss_fn
 
 
 def process_test_model_args(arguments):
@@ -138,5 +151,5 @@ def log10(x):
 
 def _tensor_size(tensor):
     from operator import mul
-    return reduce(mul, (d.value for d in tensor.get_shape()[1:]), 1)
+    return reduce(mul, (d for d in tensor.get_shape()[1:]), 1)
 
