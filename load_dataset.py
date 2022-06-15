@@ -1,7 +1,6 @@
 # Copyright 2020 by Andrey Ignatov. All Rights Reserved.
 
 from __future__ import print_function
-from scipy import misc
 from PIL import Image
 import imageio
 import os
@@ -11,7 +10,6 @@ import numpy as np
 def extract_bayer_channels(raw):
 
     # Reshape the input bayer image
-
     ch_B  = raw[1::2, 1::2]
     ch_Gb = raw[0::2, 1::2]
     ch_R  = raw[0::2, 0::2]
@@ -23,42 +21,86 @@ def extract_bayer_channels(raw):
     return RAW_norm
 
 
-def load_test_data(dataset_dir, PATCH_WIDTH, PATCH_HEIGHT, DSLR_SCALE):
+def load_val_data(dataset_dir, dslr_dir, phone_dir, PATCH_WIDTH, PATCH_HEIGHT, DSLR_SCALE):
 
-    test_directory_dslr = dataset_dir + 'test/canon/'
-    test_directory_phone = dataset_dir + 'test/huawei_raw/'
+    val_directory_dslr = dataset_dir + 'val_comp/' + dslr_dir
+    val_directory_phone = dataset_dir + 'val_comp/' + phone_dir
 
-    # NUM_TEST_IMAGES = 1204
-    NUM_TEST_IMAGES = len([name for name in os.listdir(test_directory_phone)
-                           if os.path.isfile(os.path.join(test_directory_phone, name))])
+    # get the image format (e.g. 'png')
+    format_dslr = str.split(os.listdir(val_directory_dslr)[0],'.')[-1]
 
-    test_data = np.zeros((NUM_TEST_IMAGES, PATCH_WIDTH, PATCH_HEIGHT, 4))
-    test_answ = np.zeros((NUM_TEST_IMAGES, int(PATCH_WIDTH * DSLR_SCALE), int(PATCH_HEIGHT * DSLR_SCALE), 3))
+    # determine validation image numbers by listing all files in the folder
+    NUM_VAL_IMAGES = len([name for name in os.listdir(val_directory_phone)
+                           if os.path.isfile(os.path.join(val_directory_phone, name))])
 
-    for i in range(0, NUM_TEST_IMAGES):
+    val_data = np.zeros((NUM_VAL_IMAGES, PATCH_WIDTH, PATCH_HEIGHT, 4))
+    val_answ = np.zeros((NUM_VAL_IMAGES, int(PATCH_WIDTH * DSLR_SCALE), int(PATCH_HEIGHT * DSLR_SCALE), 3))
 
-        I = np.asarray(imageio.imread((test_directory_phone + str(i) + '.png')))
+    for i in range(0, NUM_VAL_IMAGES):
+
+        I = np.asarray(imageio.imread((val_directory_phone + str(i) + '.png')))
         I = extract_bayer_channels(I)
-        test_data[i, :] = I
-        
-        I = np.asarray(Image.open(test_directory_dslr + str(i) + '.jpg'))
-        I = misc.imresize(I, DSLR_SCALE / 2, interp='bicubic')
+        val_data[i, :] = I
+
+        I = Image.open(val_directory_dslr + str(i) + '.' + format_dslr)
+        I = np.array(I.resize((int(I.size[0] * DSLR_SCALE / 2), int(I.size[1] * DSLR_SCALE / 2)), resample=Image.BICUBIC))
+        # I = np.array(I.resize((int(I.size[0] * DSLR_SCALE / 2), int(I.size[1] * DSLR_SCALE / 2)), resample=Image.BOX))
         I = np.float16(np.reshape(I, [1, int(PATCH_WIDTH * DSLR_SCALE), int(PATCH_HEIGHT * DSLR_SCALE), 3])) / 255
-        test_answ[i, :] = I
+        val_answ[i, :] = I
 
-    return test_data, test_answ
+    return val_data, val_answ
 
 
-def load_training_batch(dataset_dir, TRAIN_SIZE, PATCH_WIDTH, PATCH_HEIGHT, DSLR_SCALE):
+def load_train_data(dataset_dir, dslr_dir, phone_dir, TRAIN_SIZE, PATCH_WIDTH, PATCH_HEIGHT, DSLR_SCALE):
 
-    train_directory_dslr = dataset_dir + 'train/canon/'
-    train_directory_phone = dataset_dir + 'train/huawei_raw/'
+    train_directory_dslr = dataset_dir + 'train/' + dslr_dir
+    train_directory_phone = dataset_dir + 'train/' + phone_dir
 
-    # NUM_TRAINING_IMAGES = 46839
+    # get the image format (e.g. 'png')
+    format_dslr = str.split(os.listdir(train_directory_dslr)[0],'.')[-1]
+
+    # determine training image numbers by listing all files in the folder
+    NUM_TRAINING_IMAGES = len([name for name in os.listdir(train_directory_phone)
+                               if os.path.isfile(os.path.join(train_directory_phone, name))])
+
+    # TRAIN_IMAGES = np.random.choice(np.arange(0, NUM_TRAINING_IMAGES), TRAIN_SIZE, replace=False)
+    TRAIN_IMAGES = np.arange(0, NUM_TRAINING_IMAGES)
+
+    train_data = np.zeros((NUM_TRAINING_IMAGES, PATCH_WIDTH, PATCH_HEIGHT, 4))
+    train_answ = np.zeros((NUM_TRAINING_IMAGES, int(PATCH_WIDTH * DSLR_SCALE), int(PATCH_HEIGHT * DSLR_SCALE), 3))
+
+    i = 0
+    for img in TRAIN_IMAGES:
+
+        I = np.asarray(imageio.imread((train_directory_phone + str(img) + '.png')))
+        I = extract_bayer_channels(I)
+        train_data[i, :] = I
+
+        I = Image.open(train_directory_dslr + str(img) + '.' + format_dslr)
+        I = np.array(I.resize((int(I.size[0] * DSLR_SCALE / 2), int(I.size[1] * DSLR_SCALE / 2)), resample=Image.BICUBIC))
+        # I = np.array(I.resize((int(I.size[0] * DSLR_SCALE / 2), int(I.size[1] * DSLR_SCALE / 2)), resample=Image.BOX))
+        I = np.float16(np.reshape(I, [1, int(PATCH_WIDTH * DSLR_SCALE), int(PATCH_HEIGHT * DSLR_SCALE), 3])) / 255
+        train_answ[i, :] = I
+
+        i += 1
+
+    return train_data, train_answ
+
+
+def load_train_patch(dataset_dir, dslr_dir, phone_dir, TRAIN_SIZE, PATCH_WIDTH, PATCH_HEIGHT, DSLR_SCALE):
+
+    train_directory_dslr = dataset_dir + 'train/' + dslr_dir
+    train_directory_phone = dataset_dir + 'train/' + phone_dir
+
+    # get the image format (e.g. 'png')
+    format_dslr = str.split(os.listdir(train_directory_dslr)[0],'.')[-1]
+
+    # determine training image numbers by listing all files in the folder
     NUM_TRAINING_IMAGES = len([name for name in os.listdir(train_directory_phone)
                                if os.path.isfile(os.path.join(train_directory_phone, name))])
 
     TRAIN_IMAGES = np.random.choice(np.arange(0, NUM_TRAINING_IMAGES), TRAIN_SIZE, replace=False)
+    # TRAIN_IMAGES = np.arange(0, NUM_TRAINING_IMAGES)
 
     train_data = np.zeros((TRAIN_SIZE, PATCH_WIDTH, PATCH_HEIGHT, 4))
     train_answ = np.zeros((TRAIN_SIZE, int(PATCH_WIDTH * DSLR_SCALE), int(PATCH_HEIGHT * DSLR_SCALE), 3))
@@ -70,8 +112,51 @@ def load_training_batch(dataset_dir, TRAIN_SIZE, PATCH_WIDTH, PATCH_HEIGHT, DSLR
         I = extract_bayer_channels(I)
         train_data[i, :] = I
 
-        I = np.asarray(Image.open(train_directory_dslr + str(img) + '.jpg'))
-        I = misc.imresize(I, DSLR_SCALE / 2, interp='bicubic')
+        I = Image.open(train_directory_dslr + str(img) + '.' + format_dslr)
+        I = np.array(I.resize((int(I.size[0] * DSLR_SCALE / 2), int(I.size[1] * DSLR_SCALE / 2)), resample=Image.BICUBIC))
+        # I = np.array(I.resize((int(I.size[0] * DSLR_SCALE / 2), int(I.size[1] * DSLR_SCALE / 2)), resample=Image.BOX))
+        I = np.float16(np.reshape(I, [1, int(PATCH_WIDTH * DSLR_SCALE), int(PATCH_HEIGHT * DSLR_SCALE), 3])) / 255
+        train_answ[i, :] = I
+
+        i += 1
+
+    return train_data, train_answ
+
+
+def load_train_patch_filtered(dataset_dir, dslr_dir, phone_dir, TRAIN_SIZE, PATCH_WIDTH, PATCH_HEIGHT, DSLR_SCALE, CSV, P_THRESH, S_THRESH):
+
+    scores = np.loadtxt(CSV)
+    indices = []
+    for i, p, s in scores:
+        if p > P_THRESH and s > S_THRESH:
+            indices.append(int(i))
+
+    train_directory_dslr = dataset_dir + 'train/' + dslr_dir
+    train_directory_phone = dataset_dir + 'train/' + phone_dir
+
+    # get the image format (e.g. 'png')
+    format_dslr = str.split(os.listdir(train_directory_dslr)[0],'.')[-1]
+
+    # determine training image numbers by listing all files in the folder
+    NUM_TRAINING_IMAGES = len([name for name in os.listdir(train_directory_phone)
+                               if os.path.isfile(os.path.join(train_directory_phone, name))])
+
+    TRAIN_IMAGES = np.random.choice(indices, TRAIN_SIZE, replace=False)
+    # TRAIN_IMAGES = np.arange(0, NUM_TRAINING_IMAGES)
+
+    train_data = np.zeros((TRAIN_SIZE, PATCH_WIDTH, PATCH_HEIGHT, 4))
+    train_answ = np.zeros((TRAIN_SIZE, int(PATCH_WIDTH * DSLR_SCALE), int(PATCH_HEIGHT * DSLR_SCALE), 3))
+
+    i = 0
+    for img in TRAIN_IMAGES:
+
+        I = np.asarray(imageio.imread((train_directory_phone + str(img) + '.png')))
+        I = extract_bayer_channels(I)
+        train_data[i, :] = I
+
+        I = Image.open(train_directory_dslr + str(img) + '.' + format_dslr)
+        I = np.array(I.resize((int(I.size[0] * DSLR_SCALE / 2), int(I.size[1] * DSLR_SCALE / 2)), resample=Image.BICUBIC))
+        # I = np.array(I.resize((int(I.size[0] * DSLR_SCALE / 2), int(I.size[1] * DSLR_SCALE / 2)), resample=Image.BOX))
         I = np.float16(np.reshape(I, [1, int(PATCH_WIDTH * DSLR_SCALE), int(PATCH_HEIGHT * DSLR_SCALE), 3])) / 255
         train_answ[i, :] = I
 
