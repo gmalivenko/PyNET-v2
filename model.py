@@ -59,13 +59,6 @@ def PyNET(input, instance_norm=False, instance_norm_level_1=False):
         conv_l1_out = _conv_layer(conv_l1_out, 3, 3, 1, relu=False, instance_norm=False)
         output_l1 = tf.nn.tanh(conv_l1_out) * 0.58 + 0.5
 
-    with tf.name_scope("generator_0_"):
-        conv_l0 = _upsample_layer(conv_l1_d14, 32, 3, 2)
-        conv_l0_out = _conv_layer(conv_l0, 3 * k * k, 3, 1, relu=False, instance_norm=False)
-
-        # -> Output: Level 0
-        output_l0 = tf.nn.tanh(conv_l0_out) * 0.58 + 0.5
-
     return None, output_l1, output_l2, output_l3
 
 
